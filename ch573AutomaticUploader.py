@@ -61,6 +61,18 @@ class CH375Driver:
 #CH552 bootloader: // <a1> <x> <x> <x> <x> "MCU ISP & WCH.CN"
 DETECT_CHIP_CMD = [ 0xa1, 0x12,  0x00, 0x00, 0x00, 0x4d, 0x43, 0x55, 0x20, 0x49, 0x53, 0x50, 0x20, 0x26, 0x20, 0x57, 0x43, 0x48, 0x2e, 0x43, 0x4e]
 
+#CH552 bootloader: // <a7> <x> <x> <cfg>
+#seems follow CH552 protocol, 0x07 will output a 10 bytes, address unconfirmed but likely to be in 0x7E000. 0x08 will output BT version, 0x10 will read the sn and calc a snSum
+#recv[10] bit 1 controls boot pin, 1 means PB22, 0 means PB11. recv[14] bit 3 controls RSTEN (1 is EN)
+READ_CFG_CMD = [0xa7, 0x02, 0x00, 0x1f, 0x00]
+
+#skip A8 for now
+#<a8> <x> <x> <cfg> <x> <cfg data>
+#cfg need to be 7 to work, cfg data is mostly a copy of recv[6]~recv[17]
+
+def convertListToHex(listToConv):
+	return ", ".join("0x{:02x}".format(num) for num in listToConv)
+
 def ch573WriteData(buf):
 	ch375Driver = CH375Driver()
 	while(True):
@@ -84,7 +96,16 @@ def ch573WriteData(buf):
 			pass
 		else:
 			break
-			
+		
+		ch375Driver.send(READ_CFG_CMD)
+		recvList = ch375Driver.receive()
+		print("Bootloader Version: "+("%d%d.%d%d"%(recvList[18],recvList[19],recvList[20],recvList[21])))
+		if (recvList[10]&(1<<1)):
+			print("Bootloader entry with PB22 low")
+		else:
+			print("Bootloader entry with PB11 high")
+		
+
 	
 		break
 	ch375Driver.close()
