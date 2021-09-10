@@ -7,6 +7,8 @@ import ctypes
 import serial
 import serial.tools.list_ports
 from time import sleep
+from intelhex import IntelHex
+import sys
 
 class CH375Driver:
 	def __init__(self):
@@ -70,10 +72,19 @@ READ_CFG_CMD = [0xa7, 0x02, 0x00, 0x1f, 0x00]
 #<a8> <x> <x> <cfg> <x> <cfg data>
 #cfg need to be 7 to work, cfg data is mostly a copy of recv[6]~recv[17]
 
+#CH552 bootloader: // <a3> <len> <x> <x> ...
+#response byte 4 should be sum of mcu's calculated key
+SEND_KEY_CMD = [0xa3, 0x1e, 0x00] + [0x00] * (0x1e)
+
+#CH552 bootloader: // // <a4> <x> <x> <page>
+ERASE_CHIP_CMD = [0xa4, 0x01, 0x00, 0x08]
+
+RESET_RUN_CMD = [0xa2, 0x01, 0x00, 0x01]
+
 def convertListToHex(listToConv):
 	return ", ".join("0x{:02x}".format(num) for num in listToConv)
 
-def ch573WriteData(buf):
+def ch573WriteData(hexObj):
 	ch375Driver = CH375Driver()
 	while(True):
 		opened = False
@@ -90,9 +101,12 @@ def ch573WriteData(buf):
 		ch375Driver.send(DETECT_CHIP_CMD)
 		recvList = ch375Driver.receive()
 		if (len(recvList)<6):
+			print("DETECT_CHIP_CMD no response")
 			break
-		print("WCH chip family "+hex(recvList[5])+" devive "+hex(recvList[4]))
-		if (recvList[5] == 0x13 and recvList[4] == 0x73):
+		familyID = recvList[5]
+		deviceID = recvList[4]
+		print("WCH chip family "+hex(familyID)+" devive "+hex(deviceID))
+		if (familyID == 0x13 and deviceID == 0x73):
 			pass
 		else:
 			break
@@ -104,8 +118,63 @@ def ch573WriteData(buf):
 			print("Bootloader entry with PB22 low")
 		else:
 			print("Bootloader entry with PB11 high")
+		snList = recvList[22:22+8]
+		snSum = sum(snList)&0xFF
+		xorMask = [snSum]*8
+		xorMask[7] += deviceID
+		print("XOR mask : "+convertListToHex(xorMask))
 		
-
+		#skip config write and then read again
+		
+		ch375Driver.send(SEND_KEY_CMD)
+		recvList = ch375Driver.receive()
+		
+		hexObj = ih
+		writeAddr = hexObj.minaddr()
+		maxAddr = hexObj.maxaddr()
+		
+		pagesNeeded = max( 8 , (maxAddr+(1023))//1024 );
+		ERASE_CHIP_CMD[3] = pagesNeeded
+		
+		ch375Driver.send(ERASE_CHIP_CMD)
+		recvList = ch375Driver.receive()
+		
+		while(writeAddr<=maxAddr):
+			writePackageLen = min(56,maxAddr-writeAddr+1)
+			writePackage = [0]*writePackageLen
+			for i in range(writePackageLen):
+				xorMaskByte = xorMask[i&0x07]
+				writePackage[i] = (hexObj[writeAddr+i] ^ xorMaskByte )&0xFF
+			flashCmd = [0xA5 , writePackageLen+5 , 0 , writeAddr&0xFF, (writeAddr>>8)&0xFF , (writeAddr>>16)&0xFF, (writeAddr>>32)&0xFF , 0 ]+writePackage
+			#print(convertListToHex(flashCmd))
+			ch375Driver.send(flashCmd)
+			recvList = ch375Driver.receive()
+			writeAddr+=writePackageLen
+		
+		ch375Driver.send(SEND_KEY_CMD)
+		recvList = ch375Driver.receive()
+		
+		verifyOK = True
+		
+		while(writeAddr<=maxAddr):
+			writePackageLen = min(56,maxAddr-writeAddr+1)
+			writePackage = [0]*writePackageLen
+			for i in range(writePackageLen):
+				xorMaskByte = xorMask[i&0x07]
+				writePackage[i] = (hexObj[writeAddr+i] ^ xorMaskByte )&0xFF
+			verifyCmd = [0xA6 , writePackageLen+5 , 0 , writeAddr&0xFF, (writeAddr>>8)&0xFF , (writeAddr>>16)&0xFF, (writeAddr>>32)&0xFF , 0 ]+writePackage
+			#print(convertListToHex(flashCmd))
+			ch375Driver.send(verifyCmd)
+			recvList = ch375Driver.receive()
+			if (recvList[4]!=0 or recvList[5]!=0 ):
+				verifyOK = False
+				print("Data not match @ %d",writeAddr)
+				break
+			writeAddr+=writePackageLen
+			
+		if (verifyOK):
+			ch375Driver.send(RESET_RUN_CMD)
+			recvList = ch375Driver.receive()
 	
 		break
 	ch375Driver.close()
@@ -128,7 +197,15 @@ def rebootCH573WithTool():
 	else:
 		print("ch55xRebootTool not found.")
 
-rebootCH573WithTool()
 
-ch573WriteData([])
+if (len(sys.argv)<2):
+	print("Need parameter for HEX file")
+	exit()
+	
+ih = IntelHex(sys.argv[1])
+print("Hex address ranging from %d to %d" % (ih.minaddr(),ih.maxaddr()))
+
+
+rebootCH573WithTool()
+ch573WriteData(ih)
 
