@@ -176,6 +176,7 @@ def ch573WriteData(hexObj):
 		if (verifyOK):
 			ch375Driver.send(RESET_RUN_CMD)
 			recvList = ch375Driver.receive()
+			print("Restart Cmd Sent")
 	
 		break
 	ch375Driver.close()
