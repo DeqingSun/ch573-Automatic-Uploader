@@ -9,6 +9,7 @@ import serial.tools.list_ports
 from time import sleep
 from intelhex import IntelHex
 import sys
+import os
 
 class CH375Driver:
 	def __init__(self):
@@ -202,10 +203,25 @@ if (len(sys.argv)<2):
 	print("Need parameter for HEX file")
 	exit()
 	
-ih = IntelHex(sys.argv[1])
-print("Hex address ranging from %d to %d" % (ih.minaddr(),ih.maxaddr()))
+hexFilePath = sys.argv[1]
+
+oldEditTime = os.path.getmtime(hexFilePath)
+
+while(1):
+	try:
+		newEditTime = os.path.getmtime(hexFilePath)
+	except:
+		newEditTime = oldEditTime #ignore if file disappeared
+	if (newEditTime!=oldEditTime):
+		print("File Changed")
+		ih = IntelHex(hexFilePath)
+		print("Hex address ranging from %d to %d" % (ih.minaddr(),ih.maxaddr()))
+		rebootCH573WithTool()
+		ch573WriteData(ih)
+		oldEditTime = newEditTime
+	sleep(0.1)
 
 
-rebootCH573WithTool()
-ch573WriteData(ih)
+
+
 
