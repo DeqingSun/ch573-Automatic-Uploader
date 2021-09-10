@@ -180,23 +180,12 @@ def ch573WriteData(hexObj):
 		break
 	ch375Driver.close()
 
-def rebootCH573WithTool():
-	comlist = serial.tools.list_ports.comports()
-	ch55xRebootToolDevice = None
-	for element in comlist:
-		#print(element)
-		if (element.vid == 0x1209 and element.pid == 0xC550):
-			if (element.serial_number == "CH_RBT"):
-				ch55xRebootToolDevice = element.device
+def rebootCH573WithTool(rtbTool):
+	ch55xRebootToolSerial = serial.Serial(rtbTool,baudrate=1200,timeout=0.01,rtscts=1)
+	sleep(0.3)
+	ch55xRebootToolSerial.close()
+	#sleep(1)
 
-	if (ch55xRebootToolDevice!=None):
-		print("ch55xRebootTool Found on: " + ch55xRebootToolDevice)
-		ch55xRebootToolSerial = serial.Serial(ch55xRebootToolDevice,baudrate=1200,timeout=0.01,rtscts=1)
-		sleep(0.3)
-		ch55xRebootToolSerial.close()
-		#sleep(1)
-	else:
-		print("ch55xRebootTool not found.")
 
 
 if (len(sys.argv)<2):
@@ -207,16 +196,40 @@ hexFilePath = sys.argv[1]
 
 oldEditTime = os.path.getmtime(hexFilePath)
 
+comlist = serial.tools.list_ports.comports()
+ch55xRebootToolDevice = None
+for element in comlist:
+	#print(element)
+	if (element.vid == 0x1209 and element.pid == 0xC550):
+		if (element.serial_number == "CH_RBT"):
+			ch55xRebootToolDevice = element.device
+			
+if (ch55xRebootToolDevice!=None):
+	print("ch55xRebootTool Found on: " + ch55xRebootToolDevice)
+else:
+	print("ch55xRebootTool not found.")
+	exit()
+
+ch55xRebootToolDebugSerial = None
+
 while(1):
+	if (ch55xRebootToolDebugSerial == None):
+		ch55xRebootToolDebugSerial = serial.Serial(ch55xRebootToolDevice,baudrate=115200,timeout=0.01,rtscts=1)
+	if (ch55xRebootToolDebugSerial.in_waiting>0):
+		sys.stdout.write(ch55xRebootToolDebugSerial.read(ch55xRebootToolDebugSerial.in_waiting))
+
 	try:
 		newEditTime = os.path.getmtime(hexFilePath)
 	except:
 		newEditTime = oldEditTime #ignore if file disappeared
 	if (newEditTime!=oldEditTime):
+		ch55xRebootToolDebugSerial.close()
+		ch55xRebootToolDebugSerial = None
+		print()
 		print("File Changed")
 		ih = IntelHex(hexFilePath)
 		print("Hex address ranging from %d to %d" % (ih.minaddr(),ih.maxaddr()))
-		rebootCH573WithTool()
+		rebootCH573WithTool(ch55xRebootToolDevice)
 		ch573WriteData(ih)
 		oldEditTime = newEditTime
 	sleep(0.1)
