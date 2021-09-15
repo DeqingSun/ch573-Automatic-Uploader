@@ -229,10 +229,13 @@ while(1):
 	if (newEditTime!=oldEditTime):
 		ch55xRebootToolDebugSerial.close()
 		ch55xRebootToolDebugSerial = None
-		print()
-		print("File Changed")
 		ih = IntelHex(hexFilePath)
-		print("Hex address ranging from %d to %d" % (ih.minaddr(),ih.maxaddr()))
+		try:
+			print()
+			print("File Changed")
+			print("Hex address ranging from %d to %d" % (ih.minaddr(),ih.maxaddr()))
+		except:
+			pass
 		rebootCH573WithTool(ch55xRebootToolDevice)
 		ch573WriteData(ih)
 		oldEditTime = newEditTime
