@@ -95,7 +95,8 @@ def ch573WriteData(hexObj):
 				opened = True
 				break
 		if not opened:
-			break
+			print("CH375 port can not be opened")
+			return
 		
 		sleep(0.1)
 		
@@ -179,6 +180,7 @@ def ch573WriteData(hexObj):
 			print("Restart Cmd Sent")
 	
 		break
+	print("CH375 port to be closed")
 	ch375Driver.close()
 
 def rebootCH573WithTool(rtbTool):
@@ -195,7 +197,8 @@ if (len(sys.argv)<2):
 	
 hexFilePath = sys.argv[1]
 
-oldEditTime = os.path.getmtime(hexFilePath)
+#oldEditTime = os.path.getmtime(hexFilePath)
+oldEditTime = 0
 
 comlist = serial.tools.list_ports.comports()
 ch55xRebootToolDevice = None
@@ -217,7 +220,7 @@ while(1):
 	if (ch55xRebootToolDebugSerial == None):
 		ch55xRebootToolDebugSerial = serial.Serial(ch55xRebootToolDevice,baudrate=115200,timeout=0.01,rtscts=1)
 	if (ch55xRebootToolDebugSerial.in_waiting>0):
-        	try:
+		try:
 			sys.stdout.write(ch55xRebootToolDebugSerial.read(ch55xRebootToolDebugSerial.in_waiting))
 		except:
 			pass
@@ -231,13 +234,17 @@ while(1):
 		ch55xRebootToolDebugSerial = None
 		ih = IntelHex(hexFilePath)
 		try:
-			print()
+			print
 			print("File Changed")
 			print("Hex address ranging from %d to %d" % (ih.minaddr(),ih.maxaddr()))
 		except:
 			pass
 		rebootCH573WithTool(ch55xRebootToolDevice)
 		ch573WriteData(ih)
+		try:
+			print("Upload end")
+		except:
+			pass
 		oldEditTime = newEditTime
 	sleep(0.1)
 
