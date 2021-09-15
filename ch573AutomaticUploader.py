@@ -217,7 +217,10 @@ while(1):
 	if (ch55xRebootToolDebugSerial == None):
 		ch55xRebootToolDebugSerial = serial.Serial(ch55xRebootToolDevice,baudrate=115200,timeout=0.01,rtscts=1)
 	if (ch55xRebootToolDebugSerial.in_waiting>0):
-		sys.stdout.write(ch55xRebootToolDebugSerial.read(ch55xRebootToolDebugSerial.in_waiting))
+        	try:
+			sys.stdout.write(ch55xRebootToolDebugSerial.read(ch55xRebootToolDebugSerial.in_waiting))
+		except:
+			pass
 
 	try:
 		newEditTime = os.path.getmtime(hexFilePath)
