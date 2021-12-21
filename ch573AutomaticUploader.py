@@ -213,6 +213,8 @@ if (ch55xRebootToolDevice!=None):
 else:
 	print("ch55xRebootTool not found.")
 	exit()
+	
+print("Note: this tool can not make a new chip work yet. Use offical tool to flash the 1st time.")
 
 ch55xRebootToolDebugSerial = None
 
